@@ -1,7 +1,7 @@
 // hooks/useMidBanner.js
 import useSWR from 'swr';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 const fetcher = async (url) => {
   const res = await fetch(url);

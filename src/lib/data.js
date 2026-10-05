@@ -201,6 +201,7 @@ export const upazilas = [
     { "id": "219", "district_id": "1", "name": "Shyampur", "bn_name": "শ্যামপুর" },
     { "id": "220", "district_id": "1", "name": "Sabujbagh", "bn_name": "সবুজবাগ" },
     { "id": "221", "district_id": "1", "name": "Khilgaon", "bn_name": "খিলগাঁও" },
+    { "id": "222", "district_id": "1", "name": "Rampura", "bn_name": "রামপুরা" },
 
     // Faridpur District
     { "id": "6", "district_id": "2", "name": "Alfadanga", "bn_name": "আলফাডাঙ্গা" },

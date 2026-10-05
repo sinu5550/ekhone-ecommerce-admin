@@ -201,6 +201,7 @@ const VariantProductFields = ({ variants, setVariants, variantData }) => {
                 attributes: combo,
                 sku: `SKU-${skuBase}-${Date.now().toString().slice(-4)}`,
                 price: "",
+                costPrice: "",
                 quantity: "",
                 image: "",
                 isDefault: variants.length === 0 && combinations.indexOf(combo) === 0
@@ -460,12 +461,13 @@ const VariantProductFields = ({ variants, setVariants, variantData }) => {
                     </div>
 
                     {/* Table Header */}
-                    <div className="grid grid-cols-12 gap-4 text-xs font-bold text-gray-700 bg-white/50 p-3 shadow border border-amber-100 rounded">
+                    <div className="grid grid-cols-12 gap-3 text-xs font-bold text-gray-700 bg-white/50 p-3 shadow border border-amber-100 rounded">
                         <div className="col-span-3">Variant Combination</div>
                         <div className="col-span-2">SKU *</div>
-                        <div className="col-span-2">Price *</div>
-                        <div className="col-span-2">Quantity *</div>
-                        <div className="col-span-2">Image *</div>
+                        <div className="col-span-2">Selling Price *</div>
+                        <div className="col-span-2">Unit Cost (৳)</div>
+                        <div className="col-span-1">Stock *</div>
+                        <div className="col-span-1">Image *</div>
                         <div className="col-span-1 text-center">Action</div>
                     </div>
 
@@ -473,7 +475,7 @@ const VariantProductFields = ({ variants, setVariants, variantData }) => {
                     {variants.map((variant, index) => (
                         <div
                             key={variant.id || index}
-                            className="grid grid-cols-12 gap-4 items-center bg-white rounded-lg px-4 py-2 border border-amber-100 shadow-sm hover:shadow-md transition"
+                            className="grid grid-cols-12 gap-3 items-center bg-white rounded-lg px-4 py-2 border border-amber-100 shadow-sm hover:shadow-md transition"
                         >
                             {/* Variant Display with Default Indicator */}
                             <div className="col-span-3">
@@ -523,7 +525,7 @@ const VariantProductFields = ({ variants, setVariants, variantData }) => {
                                         );
                                     }}
                                     placeholder="SKU-001"
-                                    className={`w-full p-2 border rounded focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition ${!variant.sku
+                                    className={`w-full p-2 border rounded focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition text-xs ${!variant.sku
                                         ? 'border-red-300'
                                         : 'border-gray-300'
                                         }`}
@@ -544,7 +546,7 @@ const VariantProductFields = ({ variants, setVariants, variantData }) => {
                                         );
                                     }}
                                     placeholder="0.00"
-                                    className={`w-full p-2 border rounded focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition ${!variant.price || parseFloat(variant.price) <= 0
+                                    className={`w-full p-2 border rounded focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition text-xs ${!variant.price || parseFloat(variant.price) <= 0
                                         ? 'border-red-300'
                                         : 'border-gray-300'
                                         }`}
@@ -552,8 +554,25 @@ const VariantProductFields = ({ variants, setVariants, variantData }) => {
                                 />
                             </div>
 
-                            {/* Quantity */}
+                            {/* Unit Cost (Buying Price) */}
                             <div className="col-span-2">
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={variant.costPrice || ''}
+                                    onChange={(e) => {
+                                        setVariants(prev =>
+                                            prev.map((v, i) => i === index ? { ...v, costPrice: e.target.value } : v)
+                                        );
+                                    }}
+                                    placeholder="Cost price"
+                                    className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition text-xs"
+                                />
+                            </div>
+
+                            {/* Quantity */}
+                            <div className="col-span-1">
                                 <input
                                     type="number"
                                     min="0"
@@ -564,13 +583,13 @@ const VariantProductFields = ({ variants, setVariants, variantData }) => {
                                         );
                                     }}
                                     placeholder="0"
-                                    className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition"
+                                    className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition text-xs"
                                     required
                                 />
                             </div>
 
                             {/* Image Upload */}
-                            <div className="col-span-2">
+                            <div className="col-span-1">
                                 {variant.image ? (
                                     <div className="relative">
                                         <img

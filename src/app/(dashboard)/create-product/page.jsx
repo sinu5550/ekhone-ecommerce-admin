@@ -171,6 +171,7 @@ const CreateProduct = () => {
                 unitId: data.unitId ? parseInt(data.unitId) : undefined,
                 warrantyId: data.warrantyId ? parseInt(data.warrantyId) : undefined,
                 price: data.price ? parseFloat(data.price) : 0,
+                costPrice: data.costPrice !== undefined && data.costPrice !== '' ? parseFloat(data.costPrice) : 0,
                 quantity: data.quantity ? parseInt(data.quantity) : 0,
                 tax: data.tax ? parseFloat(data.tax) : undefined,
                 discountType: (data.discountType && data.discountValue !== undefined && data.discountValue !== '' && !isNaN(parseInt(data.discountValue)) && parseInt(data.discountValue) > 0) ? data.discountType : null,
@@ -192,13 +193,17 @@ const CreateProduct = () => {
                 payload.variants = variants.map(v => ({
                     sku: v.sku,
                     price: parseFloat(v.price),
+                    costPrice: v.costPrice !== undefined && v.costPrice !== '' ? parseFloat(v.costPrice) : 0,
                     quantity: parseInt(v.quantity),
                     attributes: v.attributes, // Object like { "Color": "Red", "Size": "M" }
                     image: v.image
                 }));
 
-                // For variant products, use first variant's price as base price
+                // For variant products, use first variant's price and costPrice as base
                 payload.price = parseFloat(variants[0].price);
+                if (variants[0].costPrice) {
+                    payload.costPrice = parseFloat(variants[0].costPrice);
+                }
             }
 
             // Clean up undefined and empty values

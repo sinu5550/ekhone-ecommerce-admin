@@ -3,7 +3,7 @@
 import { Editor } from '@tinymce/tinymce-react';
 import { useRef } from 'react';
 
-export default function TinyEditor({ value, onChange }) {
+export default function TinyEditor({ value, onChange, height = 500 }) {
     const editorRef = useRef(null);
 
     return (
@@ -13,7 +13,7 @@ export default function TinyEditor({ value, onChange }) {
             value={value}
             onEditorChange={(newValue) => onChange(newValue)}
             init={{
-                height: 500,
+                height: height,
                 menubar: 'file edit view insert format tools table help',
                 plugins: [
                     'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview', 'anchor',

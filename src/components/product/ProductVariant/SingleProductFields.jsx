@@ -31,7 +31,7 @@ const SingleProductFields = ({ register, errors, watch }) => {
             </div>
 
             <div>
-                <label className="block text-sm font-medium">Price <span className="text-rose-500">*</span></label>
+                <label className="block text-sm font-medium">Selling Price <span className="text-rose-500">*</span></label>
                 <input
                     {...register("price", {
                         required: "Price is required",
@@ -39,11 +39,31 @@ const SingleProductFields = ({ register, errors, watch }) => {
                     })}
                     type="number"
                     step="0.01"
-                    placeholder="Enter Price"
+                    placeholder="Enter Selling Price"
                     className="pl-3 pr-3 py-2 bg-white border border-gray-300 rounded w-full focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition mt-2"
                 />
                 {errors.price && (
                     <p className="text-red-500 text-xs mt-1">{errors.price.message}</p>
+                )}
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium">Unit Cost (Buying Price)</label>
+                <input
+                    {...register("costPrice", {
+                        valueAsNumber: true,
+                        min: {
+                            value: 0,
+                            message: "Cost price cannot be negative"
+                        }
+                    })}
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g. 500 (for accurate profit)"
+                    className="pl-3 pr-3 py-2 bg-white border border-gray-300 rounded w-full focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition mt-2"
+                />
+                {errors.costPrice && (
+                    <p className="text-red-500 text-xs mt-1">{errors.costPrice.message}</p>
                 )}
             </div>
 

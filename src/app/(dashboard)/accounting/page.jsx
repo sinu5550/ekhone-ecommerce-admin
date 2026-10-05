@@ -215,7 +215,7 @@ export default function AccountingDashboardPage() {
                             <AccountingKPICard
                                 title="Gross Profit"
                                 amount={kpis.grossProfit || 0}
-                                subtitle="Total Sales − Shipping Cost*"
+                                subtitle="Total Sales − Product Cost (COGS) − Shipping"
                                 badge={`${kpis.grossProfitMargin || 0}% margin`}
                                 badgeType="warning"
                                 icon={TrendingUp}

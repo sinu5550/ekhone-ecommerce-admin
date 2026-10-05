@@ -1051,7 +1051,12 @@ const ProductTable = () => {
 
                                                 <td className="px-3 py-3 text-sm text-gray-900 whitespace-nowrap">
                                                     {isVariant && variantStats ? (
-                                                        <span className="font-medium">{variantStats.priceRange}</span>
+                                                        <div className="flex flex-col">
+                                                            <span className="font-medium">{variantStats.priceRange}</span>
+                                                            {product.costPrice > 0 && (
+                                                                <span className="text-[10px] text-gray-500">Cost: ৳{product.costPrice}</span>
+                                                            )}
+                                                        </div>
                                                     ) : (
                                                         product.discountValue > 0 && product.discountType ? (
                                                             <div className="flex flex-col">
@@ -1065,9 +1070,21 @@ const ProductTable = () => {
                                                                 <span className="text-xs text-gray-400 line-through">
                                                                     ৳ {product.price}
                                                                 </span>
+                                                                {product.costPrice > 0 && (
+                                                                    <span className="text-[10px] text-emerald-700 font-medium">
+                                                                        Cost: ৳{product.costPrice}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         ) : (
-                                                            <span>৳ {product.price}</span>
+                                                            <div className="flex flex-col">
+                                                                <span>৳ {product.price}</span>
+                                                                {product.costPrice > 0 && (
+                                                                    <span className="text-[10px] text-emerald-700 font-medium">
+                                                                        Cost: ৳{product.costPrice}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         )
                                                     )}
                                                 </td>

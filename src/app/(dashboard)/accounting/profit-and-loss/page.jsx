@@ -167,7 +167,7 @@ export default function ProfitAndLossPage() {
                                     ৳{(grossProfit.amount || 0).toLocaleString()}
                                 </h3>
                                 <p className="text-xs text-amber-600 font-medium mt-0.5">
-                                    Total Sales − Shipping Cost ({grossProfit.marginPercent || 0}%)
+                                    Total Sales − COGS − Shipping ({grossProfit.marginPercent || 0}%)
                                 </p>
                             </div>
                             <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
@@ -375,6 +375,20 @@ export default function ProfitAndLossPage() {
                                     </div>
                                 </div>
                                 <div className="divide-y divide-gray-100 text-xs sm:text-sm">
+                                    {pnlData?.cogs?.costOfGoodsSold > 0 && (
+                                        <div className="flex items-center justify-between py-2 px-4 hover:bg-gray-50/50">
+                                            <span className="text-gray-700">- Cost of Goods Sold (COGS / Product Buying Cost)</span>
+                                            <div className="flex items-center gap-12 text-right">
+                                                <span className="w-28 font-medium text-gray-900">
+                                                    ৳{(pnlData.cogs.costOfGoodsSold || 0).toLocaleString()}
+                                                </span>
+                                                <span className="w-16 text-gray-500 font-mono text-xs">
+                                                    {getPercent(pnlData.cogs.costOfGoodsSold)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className="flex items-center justify-between py-2 px-4 hover:bg-gray-50/50">
                                         <span className="text-gray-700">- Dedicated Shipping Cost (Order Delivery Charges)</span>
                                         <div className="flex items-center gap-12 text-right">
@@ -391,7 +405,7 @@ export default function ProfitAndLossPage() {
                                         <div className="flex items-center gap-2">
                                             <span className="uppercase tracking-wide">GROSS PROFIT (LOSS)</span>
                                             <span className="text-xs text-amber-700 font-normal">
-                                                (Total Sales − Shipping Cost)
+                                                (Total Sales − COGS − Shipping Cost)
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-12 text-right">

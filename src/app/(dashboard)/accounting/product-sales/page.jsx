@@ -246,7 +246,7 @@ export default function ProductWiseSalesPage() {
                                             ৳{p.sellingPrice.toLocaleString()}
                                         </td>
                                         <td className="py-3 px-4 text-right text-gray-500 font-mono text-xs">
-                                            ৳{p.costPrice > 0 ? p.costPrice.toLocaleString() : "Est. 65%"}
+                                            {p.costPrice > 0 ? `৳${p.costPrice.toLocaleString()}` : "—"}
                                         </td>
                                         <td className="py-3 px-4 text-right font-bold text-gray-900">
                                             ৳{p.totalRevenue.toLocaleString()}

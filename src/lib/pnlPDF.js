@@ -206,15 +206,23 @@ export function generatePnLPDF({
         { content: "COST OF SALES", colSpan: 2, styles: { fontStyle: "bold", fillColor: [240, 240, 242], textColor: [20, 20, 20] } },
         { content: "", styles: { fillColor: [240, 240, 242] } },
     ]);
+    const cogsVal = parseFloat(pnlData?.cogs?.costOfGoodsSold || 0);
+    if (cogsVal > 0) {
+        tableBody.push([
+            "- Cost of Goods Sold (COGS / Product Buying Cost)",
+            formatCurrency(cogsVal),
+            calcPercent(cogsVal),
+        ]);
+    }
     tableBody.push([
         "- Dedicated Shipping Cost (Order Delivery Charges)",
         formatCurrency(shippingCostVal),
         calcPercent(shippingCostVal),
     ]);
     tableBody.push([
-        { content: "TOTAL DIRECT SHIPPING COST", styles: { fontStyle: "bold", textColor: [15, 23, 42] } },
-        { content: formatCurrency(shippingCostVal), styles: { fontStyle: "bold", textColor: [15, 23, 42] } },
-        { content: calcPercent(shippingCostVal), styles: { fontStyle: "bold", textColor: [15, 23, 42] } },
+        { content: "TOTAL DIRECT COST (COGS + SHIPPING)", styles: { fontStyle: "bold", textColor: [15, 23, 42] } },
+        { content: formatCurrency(cogsVal + shippingCostVal), styles: { fontStyle: "bold", textColor: [15, 23, 42] } },
+        { content: calcPercent(cogsVal + shippingCostVal), styles: { fontStyle: "bold", textColor: [15, 23, 42] } },
     ]);
     tableBody.push([
         {

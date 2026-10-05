@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef, Suspense } from "react";
 import Image from "next/image";
 import { createPortal } from "react-dom";
-import { Search, Trash2, Plus, Loader2, MoreVertical, Eye, Download, ShoppingCart, TrendingUp, Clock, ShieldCheck, XCircle, RotateCcw, Phone, Printer, Tag, FileText, MapPin, Copy, Pencil, Check, Truck, Send, Package, X, ChevronDown, CheckSquare, Square, Info, AlertCircle } from "lucide-react";
+import { Search, Trash2, Plus, Loader2, MoreVertical, Eye, Download, ShoppingCart, TrendingUp, Clock, ShieldCheck, XCircle, RotateCcw, Phone, Printer, Tag, FileText, MapPin, Copy, Pencil, Check, Truck, Send, Package, X, ChevronDown, CheckSquare, Square, Info, AlertCircle, SlidersHorizontal } from "lucide-react";
 import { toast } from "react-hot-toast";
 import Swal from "sweetalert2";
 import { useOrders, useCustomers } from "@/lib/dataFetch";
@@ -11,7 +11,7 @@ import { useModal } from "@/hooks/useModal";
 import Pagination from "@/components/shared/pagination";
 import { usePagination } from "@/hooks/usePagination";
 import { apiClient } from "@/lib/apiClient";
-import OrderAddModal from "@/components/modal/OrderModal/OrderAddModal";
+import OrderAddDrawer from "@/components/modal/OrderModal/OrderAddDrawer";
 import { useRouter, useSearchParams } from "next/navigation";
 import OrderManageModal from "@/components/modal/OrderModal/OrderManageModal";
 import CreatePaymentModal from "@/components/modal/OrderModal/CreatePaymentModal";
@@ -253,6 +253,14 @@ const Order = () => {
     const [statusFilter, setStatusFilter] = useState(initialStatus);
     const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
     const [currentPage, setCurrentPage] = useState(1);
+    const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+    const [, setCurrentTick] = useState(0);
+
+    // Keep relative time info (e.g. 10 min ago) refreshed every minute
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTick((t) => t + 1), 60000);
+        return () => clearInterval(timer);
+    }, []);
 
     useEffect(() => {
         const query = searchParams?.get("search") || "";
@@ -328,13 +336,20 @@ const Order = () => {
 
     const handleProcessInvoiceDirectly = async (orderId, orderNumber, format = "standard", action = "download", orderObj = null) => {
         let orderData = orderObj;
-        if (!orderData || !orderData.orderItems) {
-            orderData = allOrders.find(o => o.id === orderId || o._id === orderId);
+        const matchedInAll = allOrders.find(o => o.id === orderId || o._id === orderId);
+        if (!orderData) {
+            orderData = matchedInAll;
+        } else if (matchedInAll && !orderData.shipment && matchedInAll.shipment) {
+            orderData = { ...orderData, shipment: matchedInAll.shipment };
         }
-        if (!orderData || !orderData.orderItems) {
+
+        if (!orderData || !orderData.orderItems || (format === "label" && !orderData.shipment && !orderData.consignmentId)) {
             try {
                 const res = await apiClient(`/api/order/${orderId}`);
-                orderData = res?.data || res || orderData;
+                const fetched = res?.data || res;
+                if (fetched && typeof fetched === 'object') {
+                    orderData = { ...(orderData || {}), ...fetched };
+                }
             } catch (err) {
                 console.error("Order fetch error:", err);
             }
@@ -426,10 +441,6 @@ const Order = () => {
         }
     };
 
-
-
-
-
     const router = useRouter();
     const { hasPermission } = usePermission();
     const addModal = useModal();
@@ -438,7 +449,6 @@ const Order = () => {
     const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
     const [dispatchOrder, setDispatchOrder] = useState(null);
     const [selectedCourier, setSelectedCourier] = useState("STEADFAST");
-
 
     // SWR fetch for paginated structure (triggers correctly)
     const {
@@ -500,12 +510,31 @@ const Order = () => {
         setCurrentPage(1);
     }, [searchTerm, statusFilter, paymentStatusFilter, paymentMethodFilter, startDate, endDate, orderLimit]);
 
-    /** Format date */
-    const formatDate = (dateString) => {
-        if (!dateString) return "—";
+    const BD_TIMEZONE = 'Asia/Dhaka';
+
+    /** Safe Date parser handling ISO, SQL, and timestamp strings */
+    const parseToDate = (dateString) => {
+        if (!dateString) return null;
         try {
-            const date = new Date(dateString);
+            if (dateString instanceof Date) return isNaN(dateString.getTime()) ? null : dateString;
+            let dStr = String(dateString).trim();
+            if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}/.test(dStr)) {
+                dStr = dStr.replace(' ', 'T');
+            }
+            const d = new Date(dStr);
+            return isNaN(d.getTime()) ? null : d;
+        } catch {
+            return null;
+        }
+    };
+
+    /** Format date in Bangladesh Standard Time (BST) */
+    const formatDate = (dateString) => {
+        const date = parseToDate(dateString);
+        if (!date) return "—";
+        try {
             return date.toLocaleDateString('en-US', {
+                timeZone: BD_TIMEZONE,
                 year: 'numeric',
                 month: 'short',
                 day: 'numeric'
@@ -513,6 +542,128 @@ const Order = () => {
         } catch (error) {
             return "—";
         }
+    };
+
+    /** Format time in Bangladesh Standard Time (BST) (e.g. 11:45 PM) */
+    const formatBDTime = (dateString) => {
+        const date = parseToDate(dateString);
+        if (!date) return "";
+        try {
+            return date.toLocaleTimeString('en-US', {
+                timeZone: BD_TIMEZONE,
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+        } catch (error) {
+            return "";
+        }
+    };
+
+    /** Format relative time ago (e.g. 10 min ago, 30 min ago, 1h ago, 2d ago) based on local BD timeline */
+    const formatTimeAgo = (dateString) => {
+        const date = parseToDate(dateString);
+        if (!date) return "";
+        try {
+            const now = new Date();
+            const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+            if (diffInSeconds < 0) return "Just now";
+            if (diffInSeconds < 60) return "Just now";
+
+            const diffInMinutes = Math.floor(diffInSeconds / 60);
+            if (diffInMinutes < 60) {
+                return `${diffInMinutes} min ago`;
+            }
+
+            const diffInHours = Math.floor(diffInMinutes / 60);
+            if (diffInHours < 24) {
+                return `${diffInHours}h ago`;
+            }
+
+            const diffInDays = Math.floor(diffInHours / 24);
+            if (diffInDays === 1) {
+                return "1d ago";
+            }
+            if (diffInDays < 7) {
+                return `${diffInDays}d ago`;
+            }
+
+            const diffInWeeks = Math.floor(diffInDays / 7);
+            if (diffInWeeks < 4) {
+                return `${diffInWeeks}w ago`;
+            }
+
+            const diffInMonths = Math.floor(diffInDays / 30);
+            if (diffInMonths < 12) {
+                return `${diffInMonths}mo ago`;
+            }
+
+            const diffInYears = Math.floor(diffInDays / 365);
+            return `${diffInYears}y ago`;
+        } catch (error) {
+            return "";
+        }
+    };
+
+    /** Format exact date & time in Bangladesh Standard Time (BST) with 12-hour format */
+    const formatExactDateTime = (dateString) => {
+        const date = parseToDate(dateString);
+        if (!date) return "—";
+        try {
+            return date.toLocaleString('en-US', {
+                timeZone: BD_TIMEZONE,
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            }) + " (BST)";
+        } catch {
+            return "—";
+        }
+    };
+
+    /** Recency badge color & styling */
+    const getTimeAgoBadgeStyle = (dateString) => {
+        const date = parseToDate(dateString);
+        if (!date) return "bg-gray-100 text-gray-600 border-gray-200";
+        try {
+            const diffInHours = (new Date().getTime() - date.getTime()) / (1000 * 60 * 60);
+            if (diffInHours < 1) {
+                return "bg-emerald-50 text-emerald-700 border-emerald-300 font-semibold";
+            }
+            if (diffInHours < 24) {
+                return "bg-sky-50 text-sky-700 border-sky-300 font-medium";
+            }
+            if (diffInHours < 48) {
+                return "bg-amber-50 text-amber-800 border-amber-300 font-medium";
+            }
+            return "bg-slate-100/90 text-slate-600 border-slate-200 font-medium";
+        } catch {
+            return "bg-gray-100 text-gray-600 border-gray-200";
+        }
+    };
+
+    /**
+     * Resolves the true placement timestamp of an order.
+     * item.createdAt always preserves the exact database creation timestamp with hour, minute, second.
+     * item.orderDate may be truncated to midnight UTC (T00:00:00.000Z) if submitted from a date-only picker.
+     */
+    const getOrderTimestamp = (item) => {
+        if (!item) return null;
+        if (item.createdAt) {
+            if (!item.orderDate) return item.createdAt;
+            const str = String(item.orderDate);
+            // If orderDate is midnight UTC (T00:00:00) or date-only, createdAt has the precise time of placement
+            if (str.includes('T00:00:00') || str.endsWith(' 00:00:00') || str.length <= 10) {
+                return item.createdAt;
+            }
+            return item.createdAt;
+        }
+        return item.orderDate;
     };
 
     /** Safe image extraction helper */
@@ -741,6 +892,18 @@ const Order = () => {
     };
 
     const hasActiveFilters = searchTerm || statusFilter !== "all" || paymentStatusFilter !== "all" || paymentMethodFilter !== "all" || startDate || endDate || orderLimit !== "all";
+
+    const activeFilterCount = useMemo(() => {
+        let count = 0;
+        if (searchTerm) count++;
+        if (statusFilter !== "all") count++;
+        if (paymentStatusFilter !== "all") count++;
+        if (paymentMethodFilter !== "all") count++;
+        if (startDate) count++;
+        if (endDate) count++;
+        if (orderLimit !== "all") count++;
+        return count;
+    }, [searchTerm, statusFilter, paymentStatusFilter, paymentMethodFilter, startDate, endDate, orderLimit]);
 
     // Get unique status and payment status values for filter options from global data
     const statusOptions = useMemo(() => {
@@ -971,7 +1134,7 @@ const Order = () => {
 
             const date = new Date();
             const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-            const fileName = `Order list Ekhone e-commerce ${dateStr}.xlsx`;
+            const fileName = `Order list Dazzling Diva e-commerce ${dateStr}.xlsx`;
 
             XLSX.writeFile(wb, fileName);
 
@@ -1189,43 +1352,43 @@ const Order = () => {
 
     return (
         <ProtectedRoute>
-            <div className="space-y-6 text-gray-900">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="space-y-6 text-gray-900 w-full max-w-full min-w-0">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold font-philosopher">
+                        <h1 className="text-xl sm:text-2xl font-bold font-philosopher">
                             Manage Orders
                         </h1>
-                        <p className="text-gray-600 text-sm">
+                        <p className="text-gray-600 text-xs sm:text-sm">
                             Total {displayTotalItems} orders
                         </p>
                     </div>
 
-                    <div className="flex flex-wrap gap-3">
+                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
                         {hasPermission('order.export_excel') && (
                             <button
                                 onClick={handleExportExcel}
                                 disabled={isExporting}
-                                className="flex items-center gap-2 px-4 py-2.5 border border-secound hover:bg-secound text-secound hover:text-white rounded font-medium cursor-pointer transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full sm:w-auto justify-center flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 border border-secound hover:bg-secound text-secound hover:text-white rounded font-medium cursor-pointer transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm"
                             >
                                 {isExporting ? (
                                     <>
-                                        <Loader2 size={18} className="animate-spin" />
-                                        Exporting...
+                                        <Loader2 size={16} className="animate-spin" />
+                                        <span>Exporting...</span>
                                     </>
                                 ) : (
                                     <>
-                                        <Download size={18} />
-                                        Export Excel
+                                        <Download size={16} />
+                                        <span>Export Excel</span>
                                     </>
                                 )}
                             </button>
                         )}
                         {hasPermission('order.view') && (
-                            <div className="relative" ref={bulkMenuRef}>
+                            <div className="relative w-full sm:w-auto" ref={bulkMenuRef}>
                                 <button
                                     onClick={() => setOpenBulkDropdown(prev => !prev)}
                                     disabled={isDownloadingAll || (selectedOrderIds.length === 0 && filteredOrders.length === 0)}
-                                    className={`flex items-center gap-2 px-4 py-2.5 rounded font-medium cursor-pointer transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs ${selectedOrderIds.length > 0
+                                    className={`w-full sm:w-auto justify-center flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded font-medium cursor-pointer transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs text-xs sm:text-sm ${selectedOrderIds.length > 0
                                         ? "bg-amber-600 hover:bg-amber-700 text-white"
                                         : "bg-secound hover:bg-secound-hover text-white"
                                         }`}
@@ -1233,22 +1396,24 @@ const Order = () => {
                                 >
                                     {isDownloadingAll ? (
                                         <>
-                                            <Loader2 size={18} className="animate-spin" />
-                                            Processing...
+                                            <Loader2 size={16} className="animate-spin" />
+                                            <span>Processing...</span>
                                         </>
                                     ) : (
                                         <>
-                                            <FileText size={18} />
-                                            {selectedOrderIds.length > 0
-                                                ? `Bulk Options (${selectedOrderIds.length})`
-                                                : "Bulk Invoices & Labels"}
-                                            <ChevronDown size={16} className={`transition-transform duration-200 ${openBulkDropdown ? 'rotate-180' : ''}`} />
+                                            <FileText size={16} />
+                                            <span className="truncate">
+                                                {selectedOrderIds.length > 0
+                                                    ? `Bulk (${selectedOrderIds.length})`
+                                                    : "Bulk Invoices"}
+                                            </span>
+                                            <ChevronDown size={14} className={`transition-transform duration-200 shrink-0 ${openBulkDropdown ? 'rotate-180' : ''}`} />
                                         </>
                                     )}
                                 </button>
 
                                 {openBulkDropdown && (
-                                    <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 py-2 text-xs divide-y divide-gray-100 animate-in fade-in zoom-in-95 duration-100">
+                                    <div className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 py-2 text-xs divide-y divide-gray-100 animate-in fade-in zoom-in-95 duration-100">
                                         <div className="px-3.5 py-2 bg-gray-50/90 text-gray-500 font-bold uppercase tracking-wider text-[10px] flex items-center justify-between">
                                             <span>{selectedOrderIds.length > 0 ? `${selectedOrderIds.length} Selected Order(s)` : `All (${filteredOrders.length}) Orders`}</span>
                                             {selectedOrderIds.length > 0 && (
@@ -1345,29 +1510,30 @@ const Order = () => {
                         {hasPermission('order.create') && (
                             <button
                                 onClick={addModal.open}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-secound hover:bg-secound-hover text-white rounded font-medium cursor-pointer transition-colors duration-200"
+                                className="col-span-2 sm:col-span-1 order-first sm:order-last w-full sm:w-auto justify-center flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-secound hover:bg-secound-hover text-white rounded font-medium cursor-pointer transition-colors duration-200 text-xs sm:text-sm shadow-xs"
                             >
-                                <Plus size={18} /> Add Order
+                                <Plus size={16} />
+                                <span>Add Order</span>
                             </button>
                         )}
                     </div>
                 </div>
 
                 {/* KPI Header & Excluded Orders Info */}
-                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-2.5">
+                <div className="relative flex flex-wrap items-center justify-between gap-2 sm:gap-3 mb-3">
+                    <div className="flex items-center gap-2">
                         <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sales Performance</h3>
-                        <div className="relative group">
+                        <div className="group">
                             <button
                                 type="button"
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 hover:bg-amber-100 border border-amber-200/80 text-amber-800 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 hover:bg-amber-100 border border-amber-200/80 text-amber-800 text-[11px] sm:text-xs font-semibold shadow-2xs transition-all cursor-pointer"
                             >
                                 <Info className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                                <span>{excludedStats.count} Excluded / Missed</span>
+                                <span>{excludedStats.count} Excluded</span>
                             </button>
 
                             {/* Excluded Orders Info Card / Popover */}
-                            <div className="absolute left-0 top-full mt-2 w-80 sm:w-96 p-4 bg-slate-900/95 backdrop-blur-md text-white text-xs rounded-2xl shadow-xl ring-1 ring-white/10 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none">
+                            <div className="absolute left-0 top-full mt-2 w-full max-w-sm sm:w-96 p-3.5 sm:p-4 bg-slate-900/95 backdrop-blur-md text-white text-xs rounded-2xl shadow-xl ring-1 ring-white/10 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none group-hover:pointer-events-auto">
                                 <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-700/80">
                                     <span className="font-bold text-slate-100 flex items-center gap-1.5">
                                         <AlertCircle className="w-4 h-4 text-amber-400" />
@@ -1380,7 +1546,7 @@ const Order = () => {
                                     These orders are excluded from active sales performance metrics and revenue calculations:
                                 </p>
 
-                                <div className="grid grid-cols-2 gap-2 text-[11px] mb-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] mb-3">
                                     <div className="flex justify-between items-center bg-slate-800/80 px-2.5 py-1.5 rounded-lg border border-slate-700/50">
                                         <span className="text-slate-400">Cancelled:</span>
                                         <span className="font-bold text-rose-300">{excludedStats.breakdown.Cancelled.count} (৳{excludedStats.breakdown.Cancelled.val.toLocaleString()})</span>
@@ -1415,219 +1581,248 @@ const Order = () => {
                 </div>
 
                 {/* KPI Cards Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4 mb-6">
                     {/* Today Orders */}
-                    <div className="rounded-2xl p-5 border border-blue-200/50 shadow-sm flex flex-col justify-between bg-gradient-to-tr from-blue-100/90 via-blue-50/50 to-blue-200/60 transition-all hover:shadow-md h-[135px]">
-                        <div className="flex items-center justify-between">
-                            <h4 className="text-xl font-bold text-slate-800">৳{orderStats.today.val.toLocaleString()}</h4>
-                            <div className="p-2 bg-white/90 text-blue-600 rounded-full shadow-xs">
-                                <ShoppingCart className="w-4 h-4" />
+                    <div className="min-w-0 rounded-2xl p-3 sm:p-5 border border-blue-200/50 shadow-sm flex flex-col justify-between bg-gradient-to-tr from-blue-100/90 via-blue-50/50 to-blue-200/60 transition-all hover:shadow-md h-[120px] sm:h-[135px]">
+                        <div className="flex items-center justify-between gap-1">
+                            <h4 className="text-base sm:text-xl font-bold text-slate-800 truncate">৳{orderStats.today.val.toLocaleString()}</h4>
+                            <div className="p-1.5 sm:p-2 bg-white/90 text-blue-600 rounded-full shadow-xs shrink-0">
+                                <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             </div>
                         </div>
                         <div>
-                            <p className="text-xs text-slate-500 font-semibold">Today Orders</p>
-                            <span className="text-[10px] text-blue-700 font-bold block mt-1">{orderStats.today.count} Order(s)</span>
+                            <p className="text-[11px] sm:text-xs text-slate-500 font-semibold truncate">Today Orders</p>
+                            <span className="text-[10px] text-blue-700 font-bold block mt-0.5 sm:mt-1">{orderStats.today.count} Order(s)</span>
                         </div>
                     </div>
 
                     {/* Yesterday Orders */}
-                    <div className="rounded-2xl p-5 border border-emerald-200/50 shadow-sm flex flex-col justify-between bg-gradient-to-tr from-emerald-100/90 via-emerald-50/50 to-emerald-200/60 transition-all hover:shadow-md h-[135px]">
-                        <div className="flex items-center justify-between">
-                            <h4 className="text-xl font-bold text-slate-800">৳{orderStats.yesterday.val.toLocaleString()}</h4>
-                            <div className="p-2 bg-white/90 text-emerald-600 rounded-full shadow-xs">
-                                <RotateCcw className="w-4 h-4" />
+                    <div className="min-w-0 rounded-2xl p-3 sm:p-5 border border-emerald-200/50 shadow-sm flex flex-col justify-between bg-gradient-to-tr from-emerald-100/90 via-emerald-50/50 to-emerald-200/60 transition-all hover:shadow-md h-[120px] sm:h-[135px]">
+                        <div className="flex items-center justify-between gap-1">
+                            <h4 className="text-base sm:text-xl font-bold text-slate-800 truncate">৳{orderStats.yesterday.val.toLocaleString()}</h4>
+                            <div className="p-1.5 sm:p-2 bg-white/90 text-emerald-600 rounded-full shadow-xs shrink-0">
+                                <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             </div>
                         </div>
                         <div>
-                            <p className="text-xs text-slate-500 font-semibold">Yesterday Orders</p>
-                            <span className="text-[10px] text-emerald-700 font-bold block mt-1">{orderStats.yesterday.count} Order(s)</span>
+                            <p className="text-[11px] sm:text-xs text-slate-500 font-semibold truncate">Yesterday Orders</p>
+                            <span className="text-[10px] text-emerald-700 font-bold block mt-0.5 sm:mt-1">{orderStats.yesterday.count} Order(s)</span>
                         </div>
                     </div>
 
                     {/* This Month */}
-                    <div className="rounded-2xl p-5 border border-rose-200/50 shadow-sm flex flex-col justify-between bg-gradient-to-tr from-rose-100/90 via-rose-50/50 to-purple-200/60 transition-all hover:shadow-md h-[135px]">
-                        <div className="flex items-center justify-between">
-                            <h4 className="text-xl font-bold text-slate-800">৳{orderStats.thisMonth.val.toLocaleString()}</h4>
-                            <div className="p-2 bg-white/90 text-rose-600 rounded-full shadow-xs">
-                                <Tag className="w-4 h-4" />
+                    <div className="min-w-0 rounded-2xl p-3 sm:p-5 border border-rose-200/50 shadow-sm flex flex-col justify-between bg-gradient-to-tr from-rose-100/90 via-rose-50/50 to-purple-200/60 transition-all hover:shadow-md h-[120px] sm:h-[135px]">
+                        <div className="flex items-center justify-between gap-1">
+                            <h4 className="text-base sm:text-xl font-bold text-slate-800 truncate">৳{orderStats.thisMonth.val.toLocaleString()}</h4>
+                            <div className="p-1.5 sm:p-2 bg-white/90 text-rose-600 rounded-full shadow-xs shrink-0">
+                                <Tag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             </div>
                         </div>
                         <div>
-                            <p className="text-xs text-slate-500 font-semibold">This Month</p>
-                            <span className="text-[10px] text-rose-700 font-bold block mt-1">{orderStats.thisMonth.count} Order(s)</span>
+                            <p className="text-[11px] sm:text-xs text-slate-500 font-semibold truncate">This Month</p>
+                            <span className="text-[10px] text-rose-700 font-bold block mt-0.5 sm:mt-1">{orderStats.thisMonth.count} Order(s)</span>
                         </div>
                     </div>
 
                     {/* Last Month */}
-                    <div className="rounded-2xl p-5 border border-cyan-200/50 shadow-sm flex flex-col justify-between bg-gradient-to-tr from-cyan-100/90 via-cyan-50/50 to-teal-200/60 transition-all hover:shadow-md h-[135px]">
-                        <div className="flex items-center justify-between">
-                            <h4 className="text-xl font-bold text-slate-800">৳{orderStats.lastMonth.val.toLocaleString()}</h4>
-                            <div className="p-2 bg-white/90 text-cyan-600 rounded-full shadow-xs">
-                                <Clock className="w-4 h-4" />
+                    <div className="min-w-0 rounded-2xl p-3 sm:p-5 border border-cyan-200/50 shadow-sm flex flex-col justify-between bg-gradient-to-tr from-cyan-100/90 via-cyan-50/50 to-teal-200/60 transition-all hover:shadow-md h-[120px] sm:h-[135px]">
+                        <div className="flex items-center justify-between gap-1">
+                            <h4 className="text-base sm:text-xl font-bold text-slate-800 truncate">৳{orderStats.lastMonth.val.toLocaleString()}</h4>
+                            <div className="p-1.5 sm:p-2 bg-white/90 text-cyan-600 rounded-full shadow-xs shrink-0">
+                                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             </div>
                         </div>
                         <div>
-                            <p className="text-xs text-slate-500 font-semibold">Last Month</p>
-                            <span className="text-[10px] text-cyan-700 font-bold block mt-1">{orderStats.lastMonth.count} Order(s)</span>
+                            <p className="text-[11px] sm:text-xs text-slate-500 font-semibold truncate">Last Month</p>
+                            <span className="text-[10px] text-cyan-700 font-bold block mt-0.5 sm:mt-1">{orderStats.lastMonth.count} Order(s)</span>
                         </div>
                     </div>
 
                     {/* All-Time Sales */}
-                    <div className="rounded-2xl p-5 border border-purple-200/50 shadow-sm flex flex-col justify-between bg-gradient-to-tr from-purple-100/90 via-purple-50/50 to-pink-200/60 transition-all hover:shadow-md h-[135px]">
-                        <div className="flex items-center justify-between">
-                            <h4 className="text-xl font-bold text-slate-800">৳{orderStats.allTime.val.toLocaleString()}</h4>
-                            <div className="p-2 bg-white/90 text-purple-600 rounded-full shadow-xs">
-                                <TrendingUp className="w-4 h-4" />
+                    <div className="col-span-2 sm:col-span-1 min-w-0 rounded-2xl p-3 sm:p-5 border border-purple-200/50 shadow-sm flex flex-col justify-between bg-gradient-to-tr from-purple-100/90 via-purple-50/50 to-pink-200/60 transition-all hover:shadow-md h-[120px] sm:h-[135px]">
+                        <div className="flex items-center justify-between gap-1">
+                            <h4 className="text-base sm:text-xl font-bold text-slate-800 truncate">৳{orderStats.allTime.val.toLocaleString()}</h4>
+                            <div className="p-1.5 sm:p-2 bg-white/90 text-purple-600 rounded-full shadow-xs shrink-0">
+                                <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             </div>
                         </div>
                         <div>
-                            <p className="text-xs text-slate-500 font-semibold">All-Time Sales</p>
-                            <span className="text-[10px] text-purple-700 font-bold block mt-1">{orderStats.allTime.count} Order(s)</span>
+                            <p className="text-[11px] sm:text-xs text-slate-500 font-semibold truncate">All-Time Sales</p>
+                            <span className="text-[10px] text-purple-700 font-bold block mt-0.5 sm:mt-1">{orderStats.allTime.count} Order(s)</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-xl shadow-xs border border-gray-200 space-y-4">
-                    {/* Search + Filter */}
-                    <div className="flex flex-col gap-3.5 p-4 bg-gray-50/80 rounded-xl border border-gray-200/80 shadow-2xs">
-                        {/* Row 1: Search + Date Pickers + Period */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
-                            {/* Search Bar - 5 cols */}
-                            <div className="lg:col-span-5">
-                                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                                    Search Order
-                                </label>
-                                <div className="relative">
-                                    <Search
-                                        className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400"
-                                        size={18}
-                                    />
-                                    <input
-                                        type="text"
-                                        value={searchTerm}
-                                        onChange={(e) => handleSearch(e.target.value)}
-                                        placeholder="Search by order number, customer name, phone..."
-                                        className="pl-10 pr-4 py-2 bg-white border border-gray-300 rounded w-full text-sm placeholder:text-gray-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition shadow-2xs"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Start Date - 2 cols */}
-                            <div className="lg:col-span-2">
-                                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                                    Start Date
-                                </label>
+                <div className="bg-white p-3 sm:p-5 rounded-xl shadow-xs border border-gray-200 space-y-4">
+                    {/* Collapsible Search + Filter */}
+                    <div className="flex flex-col gap-3 p-3 sm:p-4 bg-gray-50/80 rounded-xl border border-gray-200/80 shadow-2xs">
+                        {/* Always-visible Search Bar + Filter Toggle */}
+                        <div className="flex items-center gap-2">
+                            <div className="relative flex-1 min-w-0">
+                                <Search
+                                    className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400"
+                                    size={18}
+                                />
                                 <input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-xs text-gray-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition shadow-2xs cursor-pointer"
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={(e) => handleSearch(e.target.value)}
+                                    placeholder="Search by order number, customer name, phone..."
+                                    className="pl-10 pr-4 py-2 bg-white border border-gray-300 rounded w-full min-w-0 text-xs sm:text-sm placeholder:text-gray-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition shadow-2xs"
                                 />
                             </div>
 
-                            {/* End Date - 2 cols */}
-                            <div className="lg:col-span-2">
-                                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                                    End Date
-                                </label>
-                                <input
-                                    type="date"
-                                    value={endDate}
-                                    onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-xs text-gray-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition shadow-2xs cursor-pointer"
+                            <button
+                                type="button"
+                                onClick={() => setIsFilterExpanded(prev => !prev)}
+                                className={`flex items-center gap-1.5 px-3 py-2 border rounded text-xs font-semibold cursor-pointer transition shadow-2xs whitespace-nowrap shrink-0 ${
+                                    isFilterExpanded || hasActiveFilters
+                                        ? "bg-secound text-white border-secound hover:bg-secound-hover"
+                                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:text-gray-900"
+                                }`}
+                                title={isFilterExpanded ? "Collapse Filters" : "Expand Filters"}
+                            >
+                                <SlidersHorizontal size={14} />
+                                <span className="hidden sm:inline">Filters</span>
+                                {activeFilterCount > 0 && (
+                                    <span className={`inline-flex items-center justify-center px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                                        isFilterExpanded || hasActiveFilters
+                                            ? "bg-white text-secound"
+                                            : "bg-secound text-white"
+                                    }`}>
+                                        {activeFilterCount}
+                                    </span>
+                                )}
+                                <ChevronDown
+                                    size={15}
+                                    className={`transition-transform duration-200 ${isFilterExpanded ? 'rotate-180' : ''}`}
                                 />
-                            </div>
-
-                            {/* Period - 3 cols */}
-                            <div className="lg:col-span-3">
-                                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                                    Time Period
-                                </label>
-                                <select
-                                    value={orderLimit}
-                                    onChange={(e) => { setOrderLimit(e.target.value); setCurrentPage(1); }}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-xs text-gray-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition shadow-2xs cursor-pointer"
-                                >
-                                    <option value="all">All Periods</option>
-                                    <option value="daily">Daily</option>
-                                    <option value="weekly">Weekly</option>
-                                    <option value="monthly">Monthly</option>
-                                    <option value="2months">2 Months</option>
-                                    <option value="4months">4 Months</option>
-                                    <option value="6months">6 Months</option>
-                                    <option value="yearly">Yearly</option>
-                                </select>
-                            </div>
+                            </button>
                         </div>
 
-                        {/* Row 2: Status, Payment Status, Payment Method & Summary/Reset */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end pt-1">
-                            {/* Status Filter - 3 cols */}
-                            <div className="lg:col-span-3">
-                                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                                    Order Status
-                                </label>
-                                <select
-                                    value={statusFilter}
-                                    onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-xs text-gray-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition shadow-2xs cursor-pointer"
-                                >
-                                    <option value="all">All Statuses</option>
-                                    {statusOptions.map((status) => (
-                                        <option key={status.value} value={status.value}>{status.label}</option>
-                                    ))}
-                                </select>
-                            </div>
+                        {/* Collapsible Filter Panel: Dates, Period, Status, Payment, Summary/Reset */}
+                        {isFilterExpanded && (
+                            <div className="pt-2 border-t border-gray-200/80 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                                {/* Row 1: Date Pickers + Period */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
+                                    {/* Start Date */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                                            Start Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={startDate}
+                                            onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-xs text-gray-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition shadow-2xs cursor-pointer"
+                                        />
+                                    </div>
 
-                            {/* Payment Status Filter - 3 cols */}
-                            <div className="lg:col-span-3">
-                                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                                    Payment Status
-                                </label>
-                                <select
-                                    value={paymentStatusFilter}
-                                    onChange={(e) => { setPaymentStatusFilter(e.target.value); setCurrentPage(1); }}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-xs text-gray-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition shadow-2xs cursor-pointer"
-                                >
-                                    <option value="all">All Payment Statuses</option>
-                                    {paymentStatusOptions.map((status) => (
-                                        <option key={status} value={status}>{status}</option>
-                                    ))}
-                                </select>
-                            </div>
+                                    {/* End Date */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                                            End Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={endDate}
+                                            onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-xs text-gray-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition shadow-2xs cursor-pointer"
+                                        />
+                                    </div>
 
-                            {/* Payment Method Filter - 3 cols */}
-                            <div className="lg:col-span-3">
-                                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                                    Payment Method
-                                </label>
-                                <select
-                                    value={paymentMethodFilter}
-                                    onChange={(e) => { setPaymentMethodFilter(e.target.value); setCurrentPage(1); }}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-xs text-gray-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition shadow-2xs cursor-pointer"
-                                >
-                                    <option value="all">All Payment Methods</option>
-                                    {paymentMethodOptions.map((method) => (
-                                        <option key={method} value={method}>{method}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Order Count & Reset Action - 3 cols */}
-                            <div className="lg:col-span-3 flex items-center justify-between sm:justify-end gap-3 h-[38px]">
-                                <div className="text-xs text-gray-500 font-medium whitespace-nowrap">
-                                    Showing <strong className="text-gray-800">{displayTotalItems > 0 ? displayIndexOfFirstRecord + 1 : 0}-{Math.min(displayIndexOfLastRecord, displayTotalItems)}</strong> of <strong className="text-gray-800">{displayTotalItems}</strong>
+                                    {/* Period */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                                            Time Period
+                                        </label>
+                                        <select
+                                            value={orderLimit}
+                                            onChange={(e) => { setOrderLimit(e.target.value); setCurrentPage(1); }}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-xs text-gray-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition shadow-2xs cursor-pointer"
+                                        >
+                                            <option value="all">All Periods</option>
+                                            <option value="daily">Daily</option>
+                                            <option value="weekly">Weekly</option>
+                                            <option value="monthly">Monthly</option>
+                                            <option value="2months">2 Months</option>
+                                            <option value="4months">4 Months</option>
+                                            <option value="6months">6 Months</option>
+                                            <option value="yearly">Yearly</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <button
-                                    onClick={resetFilters}
-                                    disabled={!hasActiveFilters}
-                                    className="h-full px-3.5 border border-dashed border-gray-300 rounded text-xs font-semibold text-gray-600 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-1.5 cursor-pointer bg-white shadow-2xs"
-                                >
-                                    <RotateCcw size={13} />
-                                    Reset
-                                </button>
+
+                                {/* Row 2: Status, Payment Status, Payment Method & Summary/Reset */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end pt-1">
+                                    {/* Status Filter - 3 cols */}
+                                    <div className="lg:col-span-3">
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                                            Order Status
+                                        </label>
+                                        <select
+                                            value={statusFilter}
+                                            onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-xs text-gray-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition shadow-2xs cursor-pointer"
+                                        >
+                                            <option value="all">All Statuses</option>
+                                            {statusOptions.map((status) => (
+                                                <option key={status.value} value={status.value}>{status.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Payment Status Filter - 3 cols */}
+                                    <div className="lg:col-span-3">
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                                            Payment Status
+                                        </label>
+                                        <select
+                                            value={paymentStatusFilter}
+                                            onChange={(e) => { setPaymentStatusFilter(e.target.value); setCurrentPage(1); }}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-xs text-gray-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition shadow-2xs cursor-pointer"
+                                        >
+                                            <option value="all">All Payment Statuses</option>
+                                            {paymentStatusOptions.map((status) => (
+                                                <option key={status} value={status}>{status}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Payment Method Filter - 3 cols */}
+                                    <div className="lg:col-span-3">
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                                            Payment Method
+                                        </label>
+                                        <select
+                                            value={paymentMethodFilter}
+                                            onChange={(e) => { setPaymentMethodFilter(e.target.value); setCurrentPage(1); }}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-xs text-gray-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition shadow-2xs cursor-pointer"
+                                        >
+                                            <option value="all">All Payment Methods</option>
+                                            {paymentMethodOptions.map((method) => (
+                                                <option key={method} value={method}>{method}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Order Count & Reset Action - 3 cols */}
+                                    <div className="lg:col-span-3 flex items-center justify-between sm:justify-end gap-3 min-h-[38px] pt-1 sm:pt-0">
+                                        <div className="text-xs text-gray-500 font-medium whitespace-nowrap">
+                                            Showing <strong className="text-gray-800">{displayTotalItems > 0 ? displayIndexOfFirstRecord + 1 : 0}-{Math.min(displayIndexOfLastRecord, displayTotalItems)}</strong> of <strong className="text-gray-800">{displayTotalItems}</strong>
+                                        </div>
+                                        <button
+                                            onClick={resetFilters}
+                                            disabled={!hasActiveFilters}
+                                            className="h-[36px] px-3.5 border border-dashed border-gray-300 rounded text-xs font-semibold text-gray-600 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-1.5 cursor-pointer bg-white shadow-2xs"
+                                        >
+                                            <RotateCcw size={13} />
+                                            Reset
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Dismissible Active Filter Chips */}
@@ -1728,9 +1923,9 @@ const Order = () => {
 
                     {/* Bulk Selection Bar */}
                     {selectedOrderIds.length > 0 && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-gradient-to-r from-amber-50 via-amber-50/50 to-orange-50/40 border border-amber-200 rounded-xl shadow-xs">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 sm:p-3.5 bg-gradient-to-r from-amber-50 via-amber-50/50 to-orange-50/40 border border-amber-200 rounded-xl shadow-xs">
                             <div className="flex items-center gap-2.5">
-                                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-amber-600 text-white text-xs font-bold shadow-xs">
+                                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-amber-600 text-white text-xs font-bold shadow-xs shrink-0">
                                     {selectedOrderIds.length}
                                 </span>
                                 <div>
@@ -1741,9 +1936,9 @@ const Order = () => {
                                 </div>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                                 {/* Download Buttons */}
-                                <div className="flex items-center bg-white border border-amber-200 rounded-lg p-0.5 shadow-2xs">
+                                <div className="flex flex-wrap items-center bg-white border border-amber-200 rounded-lg p-0.5 shadow-2xs">
                                     <span className="text-[11px] font-bold text-gray-500 px-2 flex items-center gap-1">
                                         <Download size={13} className="text-secound" /> Download:
                                     </span>
@@ -1761,7 +1956,7 @@ const Order = () => {
                                         className="px-2.5 py-1 text-xs font-semibold hover:bg-amber-600 hover:text-white text-gray-700 rounded transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
                                         title="Download combined Shipping Labels PDF"
                                     >
-                                        <Tag size={12} /> Shipping Labels
+                                        <Tag size={12} /> Labels
                                     </button>
                                     <button
                                         onClick={() => handleBulkProcessInvoices("pos", "download")}
@@ -1769,12 +1964,12 @@ const Order = () => {
                                         className="px-2.5 py-1 text-xs font-semibold hover:bg-indigo-600 hover:text-white text-gray-700 rounded transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
                                         title="Download combined POS Receipts PDF"
                                     >
-                                        <Package size={12} /> POS Receipts
+                                        <Package size={12} /> POS
                                     </button>
                                 </div>
 
                                 {/* Direct Print Buttons */}
-                                <div className="flex items-center bg-white border border-emerald-200 rounded-lg p-0.5 shadow-2xs">
+                                <div className="flex flex-wrap items-center bg-white border border-emerald-200 rounded-lg p-0.5 shadow-2xs">
                                     <span className="text-[11px] font-bold text-emerald-800 px-2 flex items-center gap-1">
                                         <Printer size={13} className="text-emerald-600" /> Print:
                                     </span>
@@ -1807,7 +2002,7 @@ const Order = () => {
                                 {/* Clear Selection */}
                                 <button
                                     onClick={() => setSelectedOrderIds([])}
-                                    className="px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                                    className="px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors cursor-pointer ml-auto sm:ml-0"
                                 >
                                     Clear
                                 </button>
@@ -1815,8 +2010,8 @@ const Order = () => {
                         </div>
                     )}
 
-                    {/* Table - Updated to use orderData directly */}
-                    <div className="overflow-x-auto border border-gray-200 rounded-xl bg-white shadow-xs">
+                    {/* Desktop Table View */}
+                    <div className="hidden lg:block overflow-x-auto border border-gray-200 rounded-xl bg-white shadow-xs">
                         <table className="w-full min-w-[1300px]">
                             <thead className="bg-neutral-50 border-b border-gray-200 text-gray-700 sticky top-0 z-20 shadow-xs">
                                 <tr>
@@ -1831,7 +2026,7 @@ const Order = () => {
                                     </th>
                                     {[
                                         { label: "#", align: "text-center", width: "w-12" },
-                                        { label: "Order NO/Date", align: "text-left", width: "whitespace-nowrap min-w-[120px]" },
+                                        { label: "Order NO/Date", align: "text-left", width: "whitespace-nowrap min-w-[155px]" },
                                         { label: "Customer Info", align: "text-left", width: "min-w-[180px]" },
                                         { label: "Address", align: "text-left", width: "min-w-[210px]" },
                                         { label: "Products", align: "text-left", width: "min-w-[150px]" },
@@ -1886,16 +2081,41 @@ const Order = () => {
                                                 </td>
                                                 <td className="px-4 py-3 text-sm font-medium text-gray-900 align-middle whitespace-nowrap">
                                                     <div
-                                                        className="cursor-pointer group inline-block"
+                                                        className="cursor-pointer group flex flex-col items-start gap-1"
                                                         onClick={() => handleOpenDrawer(item, "overview")}
-                                                        title="Click to view details in drawer"
+                                                        title={`Placed (BD Time): ${formatExactDateTime(getOrderTimestamp(item))} (Click to view details)`}
                                                     >
-                                                        <span className="block font-semibold group-hover:text-primary transition-colors">
+                                                        <span className="font-semibold text-gray-900 group-hover:text-primary transition-colors">
                                                             {item.orderNumber || "—"}
                                                         </span>
-                                                        <span className="text-xs text-gray-500 font-mono group-hover:text-primary transition-colors">
-                                                            {formatDate(item.orderDate)}
-                                                        </span>
+                                                        <div className="flex items-center gap-1.5 text-xs text-gray-500 font-mono group-hover:text-primary transition-colors">
+                                                            <span>{formatDate(item.orderDate || item.createdAt)}</span>
+                                                            {formatBDTime(getOrderTimestamp(item)) && (
+                                                                <>
+                                                                    <span className="text-[10px] text-gray-400 font-sans">•</span>
+                                                                    <span>{formatBDTime(getOrderTimestamp(item))}</span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                        {formatTimeAgo(getOrderTimestamp(item)) && (
+                                                            <span
+                                                                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border shadow-2xs ${getTimeAgoBadgeStyle(getOrderTimestamp(item))}`}
+                                                            >
+                                                                {(() => {
+                                                                    const orderDateObj = parseToDate(getOrderTimestamp(item));
+                                                                    const isVeryRecent = orderDateObj && (new Date().getTime() - orderDateObj.getTime()) < 60 * 60 * 1000;
+                                                                    return isVeryRecent ? (
+                                                                        <span className="relative flex h-1.5 w-1.5 shrink-0">
+                                                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                                                        </span>
+                                                                    ) : (
+                                                                        <Clock size={10} className="shrink-0 opacity-70" />
+                                                                    );
+                                                                })()}
+                                                                <span>{formatTimeAgo(getOrderTimestamp(item))}</span>
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm align-middle">
@@ -2220,6 +2440,137 @@ const Order = () => {
                         </table>
                     </div>
 
+                    {/* Mobile Order Cards View (block on < lg screens) */}
+                    <div className="block lg:hidden space-y-2.5">
+                        {isLoading ? (
+                            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+                                <div className="flex flex-col items-center justify-center gap-2">
+                                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                    <span className="text-sm text-gray-600">Loading orders...</span>
+                                </div>
+                            </div>
+                        ) : error ? (
+                            <div className="bg-white rounded-xl border border-rose-200 p-6 text-center text-rose-600 text-sm">
+                                Error loading orders: {error.message}
+                            </div>
+                        ) : displayOrders.length > 0 ? (
+                            displayOrders.map((item) => (
+                                <div
+                                    key={item.id}
+                                    onClick={() => handleOpenDrawer(item, "overview")}
+                                    className="bg-white rounded-xl border border-gray-200 hover:border-primary active:scale-[0.99] p-3.5 transition-all shadow-xs cursor-pointer space-y-2.5"
+                                    title="Click to view order details"
+                                >
+                                    {/* Top Row: Order ID + Status Badge + Amount */}
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <span className="font-bold text-gray-900 text-sm truncate">
+                                                {item.orderNumber || "—"}
+                                            </span>
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border shrink-0 ${getOrderStatusStyle(item.status)}`}>
+                                                {formatOrderStatusDisplay(item.status)}
+                                            </span>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            <span className="font-bold text-gray-900 text-sm">
+                                                ৳{item.grandTotal || 0}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Middle Row: Customer Info + Action Buttons (Call, More, Delete) */}
+                                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100">
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-semibold text-gray-800 text-xs truncate">
+                                                {item.customer?.fullName || "Guest Customer"}
+                                            </p>
+                                            {item.customer?.phone && (
+                                                <p className="text-[11px] text-gray-500 font-mono mt-0.5">
+                                                    {item.customer.phone}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            {item.customer?.phone && (
+                                                <a
+                                                    href={`tel:${item.customer.phone}`}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold rounded-lg text-xs border border-emerald-200 transition-colors shadow-2xs"
+                                                    title="Call Customer"
+                                                >
+                                                    <Phone size={12} className="text-emerald-600" />
+                                                    <span>Call</span>
+                                                </a>
+                                            )}
+
+                                            {shouldShowDropdown(item) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        toggleDropdown(item.id, e);
+                                                    }}
+                                                    className="p-1.5 text-gray-500 hover:text-secound hover:bg-gray-100 rounded-lg transition-colors border border-gray-200 cursor-pointer"
+                                                    title="More Actions"
+                                                >
+                                                    <MoreVertical size={14} />
+                                                </button>
+                                            )}
+
+                                            {hasPermission('order.delete') && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDelete(item.id);
+                                                    }}
+                                                    className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-gray-200 hover:border-rose-200 cursor-pointer"
+                                                    title="Delete Order"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Bottom Row: Date/Time + Due / Relative Time */}
+                                    <div className="flex items-center justify-between text-[11px] text-gray-500 font-mono pt-1.5 border-t border-gray-100">
+                                        <div className="flex items-center gap-1.5 min-w-0 truncate">
+                                            <Clock size={11} className="text-gray-400 shrink-0" />
+                                            <span>{formatDate(item.orderDate || item.createdAt)}</span>
+                                            {formatBDTime(getOrderTimestamp(item)) && (
+                                                <>
+                                                    <span className="text-gray-300">•</span>
+                                                    <span>{formatBDTime(getOrderTimestamp(item))}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                        {parseFloat(item.dueAmount || 0) > 0 ? (
+                                            <span className="text-rose-600 font-semibold font-sans text-xs shrink-0">
+                                                Due: ৳{item.dueAmount}
+                                            </span>
+                                        ) : formatTimeAgo(getOrderTimestamp(item)) ? (
+                                            <span className="text-gray-400 font-sans text-[10px] shrink-0">
+                                                {formatTimeAgo(getOrderTimestamp(item))}
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-500">
+                                <Search className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                                <p className="text-base font-medium text-gray-900">No orders found</p>
+                                <p className="text-xs text-gray-600 mt-1">
+                                    {hasActiveFilters
+                                        ? "Try adjusting your search or filter criteria"
+                                        : "Get started by adding your first order"}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Pagination */}
                     {displayTotalPages > 1 && (
                         <Pagination
@@ -2243,7 +2594,7 @@ const Order = () => {
                 />
 
                 {/* Modals */}
-                <OrderAddModal
+                <OrderAddDrawer
                     isOpen={addModal.isOpen}
                     onClose={addModal.close}
                     onSuccess={handleAddSuccess}

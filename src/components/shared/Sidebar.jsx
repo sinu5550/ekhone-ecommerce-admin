@@ -18,6 +18,7 @@ import {
   Layers,
   Layers3,
   LayoutDashboard,
+  LayoutTemplate,
   ListTree,
   ListTreeIcon,
   MailQuestion,
@@ -173,6 +174,16 @@ const NAVIGATION_ITEMS = [
       // { name: "Coupons", href: "/coupon", icon: BadgePercent },
       { name: "Discounts", href: "/discount", icon: Scissors },
       // { name: "Bundles", href: "/bundle-product", icon: Layers },
+    ]
+  },
+  {
+    id: "landing-page",
+    name: "Build Landing Page",
+    icon: LayoutTemplate,
+    category: "marketing",
+    subItems: [
+      { name: "All Landing Pages", href: "/landing-pages", icon: LayoutTemplate },
+      { name: "Create Landing Page", href: "/landing-pages/create", icon: PlusSquare },
     ]
   },
   {

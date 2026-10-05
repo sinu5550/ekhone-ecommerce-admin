@@ -29,6 +29,7 @@
   --font-sans: var(--font-inter), var(--font-manrope), sans-serif;
   --font-inter: var(--font-inter);
   --font-manrope: var(--font-manrope);
+  --font-hind-siliguri: var(--font-hind-siliguri), 'Hind Siliguri', sans-serif;
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
   --color-primary-light: var(--primary-light);
@@ -37,6 +38,10 @@
   --color-secound: var(--secound);
   --color-secound-hover: var(--secound-hover);
   --color-light-gray: var(--light-gray);
+}
+
+.font-hind {
+  font-family: var(--font-hind-siliguri), 'Hind Siliguri', sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {

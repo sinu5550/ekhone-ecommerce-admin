@@ -761,6 +761,36 @@ export default function ProductDetailDrawer({
                                                         </div>
                                                     </>
                                                 )}
+                                                {/* Unit Cost & Margin */}
+                                                <div className="py-1.5 flex items-center justify-between">
+                                                    <span className="text-gray-500">Unit Cost (Buying):</span>
+                                                    <span className="font-semibold text-gray-800">
+                                                        {formatCurrency(
+                                                            (activeProduct?.productType === 'variant' && selectedVariant && selectedVariant.costPrice != null && selectedVariant.costPrice > 0)
+                                                                ? selectedVariant.costPrice
+                                                                : (activeProduct?.costPrice || 0)
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                {(() => {
+                                                    const cost = (activeProduct?.productType === 'variant' && selectedVariant && selectedVariant.costPrice != null && selectedVariant.costPrice > 0)
+                                                        ? parseFloat(selectedVariant.costPrice)
+                                                        : parseFloat(activeProduct?.costPrice || 0);
+                                                    const sellPrice = discountedPrice || currentPrice;
+                                                    if (cost > 0 && sellPrice > 0) {
+                                                        const profit = sellPrice - cost;
+                                                        const margin = (profit / sellPrice) * 100;
+                                                        return (
+                                                            <div className="py-1.5 flex items-center justify-between">
+                                                                <span className="text-gray-500">Gross Profit (Est.):</span>
+                                                                <span className={`font-semibold ${profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                                                    {formatCurrency(profit)} ({margin.toFixed(1)}%)
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
                                                 {isVariantProduct && (
                                                     <div className="py-1.5 flex items-center justify-between">
                                                         <span className="text-gray-500">Catalog Price Range:</span>
@@ -980,6 +1010,7 @@ export default function ProductDetailDrawer({
                                                     <th className="px-4 py-3">Attributes</th>
                                                     <th className="px-4 py-3">SKU</th>
                                                     <th className="px-4 py-3">Price</th>
+                                                    <th className="px-4 py-3">Unit Cost</th>
                                                     <th className="px-4 py-3">Stock</th>
                                                     <th className="px-4 py-3 text-right">Actions</th>
                                                 </tr>
@@ -1039,6 +1070,10 @@ export default function ProductDetailDrawer({
 
                                                             <td className="px-4 py-3 whitespace-nowrap font-bold text-gray-900">
                                                                 {formatCurrency(v.price)}
+                                                            </td>
+
+                                                            <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-700">
+                                                                {formatCurrency(v.costPrice != null ? v.costPrice : (activeProduct?.costPrice || 0))}
                                                             </td>
 
                                                             <td className="px-4 py-3 whitespace-nowrap">

@@ -876,6 +876,9 @@ const ProductEditDrawer = ({ isOpen, onClose, product, onSuccess }) => {
                                     setVariants={setVariants}
                                     variantData={variantData}
                                     isLoadingVariants={isLoadingVariants}
+                                    register={register}
+                                    errors={errors}
+                                    watch={watch}
                                 />
                             )}
                         </div>

@@ -13,7 +13,7 @@ import { toast } from "react-hot-toast";
  * @param {Function} setVariants - Function to update variants
  * @param {Array} variantData - Available variant attributes from API
  */
-const VariantProductFields = ({ variants, setVariants, variantData }) => {
+const VariantProductFields = ({ variants, setVariants, variantData, register, errors, watch }) => {
     // State for attribute combination builder
     const [selectedAttributes, setSelectedAttributes] = useState([]);
     const [currentAttribute, setCurrentAttribute] = useState("");
@@ -275,8 +275,91 @@ const VariantProductFields = ({ variants, setVariants, variantData }) => {
         return selectedAttributes.every(attr => combination[attr]);
     }, [selectedAttributes]);
 
+    const taxType = watch ? watch("taxType") : "";
+    const isTaxInclusive = taxType === "exclusive";
+
     return (
         <div className="space-y-6">
+            {/* Global Pricing & Discount Settings for Variant Product */}
+            {register && (
+                <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-800 border-b pb-3">
+                        Tax & Discount Settings
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div>
+                            <label className="block text-sm font-medium">Tax Type</label>
+                            <select
+                                {...register("taxType")}
+                                className="select select-bordered pl-3 pr-3 py-2 bg-white border border-gray-300 rounded w-full focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition mt-2"
+                            >
+                                <option value="">Select</option>
+                                <option value="inclusive">Inclusive</option>
+                                <option value="exclusive">Exclusive</option>
+                            </select>
+                            {errors?.taxType && (
+                                <p className="text-red-500 text-xs mt-1">{errors.taxType.message}</p>
+                            )}
+                        </div>
+
+                        {/* Tax field - conditionally rendered */}
+                        {isTaxInclusive && (
+                            <div>
+                                <label className="block text-sm font-medium">Tax (%) <span className="text-rose-500">*</span></label>
+                                <input
+                                    {...register("tax", {
+                                        required: "Tax is required",
+                                        valueAsNumber: true
+                                    })}
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="Enter Tax (%)"
+                                    className="pl-3 pr-3 py-2 bg-white border border-gray-300 rounded w-full focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition mt-2"
+                                />
+                                {errors?.tax && (
+                                    <p className="text-red-500 text-xs mt-1">{errors.tax.message}</p>
+                                )}
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-sm font-medium">Discount Type</label>
+                            <select
+                                {...register("discountType")}
+                                className="select select-bordered pl-3 pr-3 py-2 bg-white border border-gray-300 rounded w-full focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition mt-2"
+                            >
+                                <option value="">No Discount</option>
+                                <option value="Percentage">Percentage</option>
+                                <option value="Fixed">Fixed</option>
+                            </select>
+                            {errors?.discountType && (
+                                <p className="text-red-500 text-xs mt-1">{errors.discountType.message}</p>
+                            )}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium">Discount Value</label>
+                            <input
+                                {...register("discountValue", {
+                                    valueAsNumber: true,
+                                    min: {
+                                        value: 0,
+                                        message: "Discount cannot be negative"
+                                    }
+                                })}
+                                type="number"
+                                min="0"
+                                placeholder="Enter Discount Value"
+                                className="pl-3 pr-3 py-2 bg-white border border-gray-300 rounded w-full focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition mt-2"
+                            />
+                            {errors?.discountValue && (
+                                <p className="text-red-500 text-xs mt-1">{errors.discountValue.message}</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Attribute Combination Builder */}
             <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
                 <h3 className="text-lg font-semibold text-gray-800">

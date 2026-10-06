@@ -277,6 +277,7 @@ const VariantProductFields = ({ variants, setVariants, variantData, register, er
 
     const taxType = watch ? watch("taxType") : "";
     const isTaxInclusive = taxType === "exclusive";
+    const discountType = watch ? watch("discountType") : "";
 
     return (
         <div className="space-y-6">
@@ -329,8 +330,8 @@ const VariantProductFields = ({ variants, setVariants, variantData, register, er
                                 className="select select-bordered pl-3 pr-3 py-2 bg-white border border-gray-300 rounded w-full focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition mt-2"
                             >
                                 <option value="">No Discount</option>
-                                <option value="Percentage">Percentage</option>
-                                <option value="Fixed">Fixed</option>
+                                <option value="Percentage">Percentage (%)</option>
+                                <option value="Fixed">Fixed Price (৳)</option>
                             </select>
                             {errors?.discountType && (
                                 <p className="text-red-500 text-xs mt-1">{errors.discountType.message}</p>
@@ -338,18 +339,38 @@ const VariantProductFields = ({ variants, setVariants, variantData, register, er
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium">Discount Value</label>
+                            <label className="block text-sm font-medium">
+                                {discountType === "Percentage"
+                                    ? "Discount Value (%)"
+                                    : discountType === "Fixed"
+                                    ? "Discount Amount (৳)"
+                                    : "Discount Value"}
+                            </label>
                             <input
                                 {...register("discountValue", {
                                     valueAsNumber: true,
                                     min: {
                                         value: 0,
                                         message: "Discount cannot be negative"
+                                    },
+                                    validate: (value) => {
+                                        if (value < 0) return "Discount cannot be negative";
+                                        if (discountType === "Percentage" && value > 100) {
+                                            return "Discount percentage cannot exceed 100%";
+                                        }
+                                        return true;
                                     }
                                 })}
                                 type="number"
+                                step="0.01"
                                 min="0"
-                                placeholder="Enter Discount Value"
+                                placeholder={
+                                    discountType === "Percentage"
+                                        ? "e.g. 10 (for 10%)"
+                                        : discountType === "Fixed"
+                                        ? "e.g. 150 (for ৳150)"
+                                        : "Enter Discount Value"
+                                }
                                 className="pl-3 pr-3 py-2 bg-white border border-gray-300 rounded w-full focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition mt-2"
                             />
                             {errors?.discountValue && (

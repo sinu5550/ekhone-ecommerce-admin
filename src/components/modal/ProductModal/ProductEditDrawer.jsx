@@ -336,9 +336,9 @@ const ProductEditDrawer = ({ isOpen, onClose, product, onSuccess }) => {
 
             let payload;
 
-            const hasValidDiscount = data.discountType && data.discountValue !== undefined && data.discountValue !== '' && !isNaN(parseInt(data.discountValue)) && parseInt(data.discountValue) > 0;
+            const hasValidDiscount = data.discountType && data.discountValue !== undefined && data.discountValue !== '' && !isNaN(parseFloat(data.discountValue)) && parseFloat(data.discountValue) > 0;
             const discountTypePayload = hasValidDiscount ? data.discountType : null;
-            const discountValuePayload = hasValidDiscount ? parseInt(data.discountValue) : 0;
+            const discountValuePayload = hasValidDiscount ? parseFloat(data.discountValue) : 0;
 
             if (productType === 'variable') {
                 payload = {

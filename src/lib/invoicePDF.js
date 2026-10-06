@@ -37,16 +37,16 @@ export const getInvoiceNumber = (data) => {
 
 class ClientPDFGenerator {
     constructor() {
-        // Brand colours
-        this.brand = [255, 230, 0];     
-        this.tableHead = [61, 61, 61];  
-        this.summHead = [74, 74, 74];    // #4A4A4A - dark gray
-        this.primary = [26, 26, 26];     // #1A1A1A
-        this.secondary = [102, 102, 102]; // #666666
-        this.rowAlt = [245, 245, 245];   // #F5F5F5
-        this.border = [222, 222, 222];   // #DEDEDE
-        this.success = [46, 125, 50];    // #2E7D32
-        this.warning = [200, 75, 0];     // #C84B00
+        // Brand colours (Ekhone: Primary Orange #F45116, Navy #102D50)
+        this.brand = [244, 81, 22];     
+        this.tableHead = [16, 45, 80];  
+        this.summHead = [16, 45, 80];    
+        this.primary = [16, 45, 80];     
+        this.secondary = [102, 102, 102];
+        this.rowAlt = [245, 245, 245];   
+        this.border = [222, 222, 222];   
+        this.success = [46, 125, 50];    
+        this.warning = [244, 81, 22];     
         this.white = [255, 255, 255];
 
         // Page metrics (mm)

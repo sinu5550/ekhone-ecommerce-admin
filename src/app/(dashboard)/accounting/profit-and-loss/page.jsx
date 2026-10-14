@@ -61,7 +61,7 @@ export default function ProfitAndLossPage() {
         name: "Ekhone",
         address: "Jigatola, Dhaka, Bangladesh",
         phone: "+880 1700000000",
-        email: "ahmedsiyan33@gmail.com",
+        email: "ekhoneit@gmail.com",
     };
 
     const exportRows = [

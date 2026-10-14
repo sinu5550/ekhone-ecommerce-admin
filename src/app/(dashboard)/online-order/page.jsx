@@ -1134,7 +1134,7 @@ const Order = () => {
 
             const date = new Date();
             const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-            const fileName = `Order list Dazzling Diva e-commerce ${dateStr}.xlsx`;
+            const fileName = `Order list Ekhone e-commerce ${dateStr}.xlsx`;
 
             XLSX.writeFile(wb, fileName);
 

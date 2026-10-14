@@ -23,6 +23,7 @@ import {
   ListTreeIcon,
   MailQuestion,
   Package,
+  Palette,
   PenLine,
   Phone,
   PlusSquare,
@@ -51,6 +52,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useState } from "react";
 import brandLogo from "../../../public/ekhone.png";
+import { useStoreSetting } from "@/hooks/useStoreSetting";
 import "./style.css";
 
 const NAVIGATION_ITEMS = [
@@ -200,6 +202,7 @@ const NAVIGATION_ITEMS = [
     category: "content",
     subItems: [
       { name: "Hero Section", href: "/hero", icon: FileText },
+      { name: "Popup Banner", href: "/popup-banner", icon: Sparkles },
       { name: "Landing Page", href: "/landing-page", icon: LayoutDashboard },
       // { name: "About Us", href: "/about-us", icon: Users },
       // { name: "Blogs", href: "/blogs", icon: PenLine },
@@ -236,9 +239,12 @@ const NAVIGATION_ITEMS = [
   {
     id: "settings",
     name: "Settings",
-    href: "/settings",
     icon: Settings,
-    category: "admin"
+    category: "admin",
+    subItems: [
+      { name: "My Account", href: "/settings", icon: Settings },
+      { name: "Branding & Colors", href: "/branding-settings", icon: Palette },
+    ]
   },
 ];
 
@@ -320,6 +326,7 @@ const SidebarContent = ({
   onCloseMobile,
 }) => {
   const pathname = usePathname();
+  const { settings } = useStoreSetting();
 
   return (
     <div className="flex flex-col h-full bg-white rounded-xl overflow-hidden">
@@ -341,14 +348,19 @@ const SidebarContent = ({
             </div>
           ) : (
             <div className="flex items-center justify-center">
-              <Image
-                src={brandLogo}
-                alt="Ekhone Logo"
-                width={160}
-                height={40}
-                className="object-contain"
-                priority
-              />
+              <div
+                className={`relative w-40 h-11 flex items-center justify-center rounded-lg p-1 ${
+                  settings?.navbarLogoBg ? "bg-white shadow-2xs border border-slate-100" : ""
+                }`}
+              >
+                <Image
+                  src={settings?.logo || brandLogo}
+                  alt="Logo"
+                  fill
+                  className="object-contain"
+                  priority
+                />
+              </div>
             </div>
           )}
         </div>

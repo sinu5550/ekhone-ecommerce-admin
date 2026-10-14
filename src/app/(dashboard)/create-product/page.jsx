@@ -2,11 +2,12 @@
 
 import SingleProductFields from "@/components/product/ProductVariant/SingleProductFields";
 import VariantProductFields from "@/components/product/ProductVariant/VariantProductFields";
+import OrderBumpSelector from "@/components/product/OrderBumpSelector";
 import TinyEditor from "@/components/TinyEditor/Editor";
 import CloudinaryImageInput from "@/components/ui/CloudinaryImageInput";
 import { usePermission } from "@/context/PermissionProvider";
 import { apiClient } from "@/lib/apiClient";
-import { useBrands, useCollections, useMainCategories, useUnits, useVariantAttributes, useWarranties } from "@/lib/dataFetch";
+import { useBrands, useCollections, useMainCategories, useUnits, useVariantAttributes, useWarranties, useProducts } from "@/lib/dataFetch";
 import { ProtectedRoute } from "@/ProtectedRoute/ProtectedRoute";
 import { ArrowLeft, FileDiff, Image, Images, RotateCcw, Sparkles, Check } from "lucide-react";
 import Link from "next/link";
@@ -21,6 +22,8 @@ const CreateProduct = () => {
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [productType, setProductType] = useState("single");
+    const { data: rawProductData = [] } = useProducts(1, 1000);
+    const allProducts = Array.isArray(rawProductData) ? rawProductData : rawProductData?.products || [];
     const { data: variantData = [] } = useVariantAttributes();
     const { data: warrantyData = [] } = useWarranties();
     const { data: categoryData = [] } = useMainCategories();
@@ -36,6 +39,15 @@ const CreateProduct = () => {
     const [warrantyEnabled, setWarrantyEnabled] = useState(false);
     const [expireEnabled, setExpireEnabled] = useState(false);
     const [variants, setVariants] = useState([]);
+
+    // Order Bump states
+    const [enableOrderBump, setEnableOrderBump] = useState(false);
+    const [orderBumpProduct, setOrderBumpProduct] = useState(null);
+    const [orderBumpTitle, setOrderBumpTitle] = useState("স্পেশাল অ্যাড-অন অফার! সাথে নিন আমাদের এই বিশেষ পণ্য");
+    const [orderBumpSubtitle, setOrderBumpSubtitle] = useState("মূল পণ্যের সাথে একই পার্সেল ডেলিভারিতে পাচ্ছেন আকর্ষণীয় অতিরিক্ত ছাড়!");
+    const [orderBumpDiscount, setOrderBumpDiscount] = useState(100);
+    const [orderBumpPrice, setOrderBumpPrice] = useState("");
+
     const previousProductNameRef = useRef('');
     const previousProductTypeRef = useRef('single');
     const { hasPermission } = usePermission();
@@ -183,6 +195,12 @@ const CreateProduct = () => {
                 insideDhakaDeliveryCharge: data.insideDhakaDeliveryCharge ? parseFloat(data.insideDhakaDeliveryCharge) : undefined,
                 outsideDhakaDeliveryCharge: data.outsideDhakaDeliveryCharge ? parseFloat(data.outsideDhakaDeliveryCharge) : undefined,
                 collectionIds: selectedCollections.length > 0 ? selectedCollections : undefined,
+                // Order Bump payload
+                orderBumpProductId: (enableOrderBump && orderBumpProduct) ? orderBumpProduct.id : null,
+                orderBumpTitle: (enableOrderBump && orderBumpProduct) ? orderBumpTitle.trim() : null,
+                orderBumpSubtitle: (enableOrderBump && orderBumpProduct) ? orderBumpSubtitle.trim() : null,
+                orderBumpDiscount: (enableOrderBump && orderBumpProduct) ? (parseFloat(orderBumpDiscount) || 0) : 0,
+                orderBumpPrice: (enableOrderBump && orderBumpProduct && orderBumpPrice) ? parseFloat(orderBumpPrice) : null,
                 // Remove UI-only fields
                 mainCategory: undefined,
                 category: undefined
@@ -243,6 +261,12 @@ const CreateProduct = () => {
         setSelectedValue("");
         setVariants([]);
         setProductType("single");
+        setEnableOrderBump(false);
+        setOrderBumpProduct(null);
+        setOrderBumpTitle("স্পেশাল অ্যাড-অন অফার! সাথে নিন আমাদের এই বিশেষ পণ্য");
+        setOrderBumpSubtitle("মূল পণ্যের সাথে একই পার্সেল ডেলিভারিতে পাচ্ছেন আকর্ষণীয় অতিরিক্ত ছাড়!");
+        setOrderBumpDiscount(100);
+        setOrderBumpPrice("");
         previousProductNameRef.current = '';
         previousProductTypeRef.current = 'single';
     };
@@ -898,6 +922,23 @@ const CreateProduct = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Order Bump Upsell Section */}
+                    <OrderBumpSelector
+                        enableOrderBump={enableOrderBump}
+                        setEnableOrderBump={setEnableOrderBump}
+                        orderBumpProduct={orderBumpProduct}
+                        setOrderBumpProduct={setOrderBumpProduct}
+                        orderBumpTitle={orderBumpTitle}
+                        setOrderBumpTitle={setOrderBumpTitle}
+                        orderBumpSubtitle={orderBumpSubtitle}
+                        setOrderBumpSubtitle={setOrderBumpSubtitle}
+                        orderBumpDiscount={orderBumpDiscount}
+                        setOrderBumpDiscount={setOrderBumpDiscount}
+                        orderBumpPrice={orderBumpPrice}
+                        setOrderBumpPrice={setOrderBumpPrice}
+                        allProducts={allProducts}
+                    />
 
                     {/* Submit Button */}
                     <div className="flex justify-end pt-4">

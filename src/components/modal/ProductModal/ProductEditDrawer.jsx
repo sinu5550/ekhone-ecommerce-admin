@@ -13,12 +13,14 @@ import {
     useMainCategories,
     useUnits,
     useVariantAttributes,
-    useWarranties
+    useWarranties,
+    useProducts,
 } from '@/lib/dataFetch';
 import CloudinaryImageInput from '@/components/ui/CloudinaryImageInput';
 import SingleProductFields from '@/components/product/ProductVariant/SingleProductFields';
 import TinyEditor from '@/components/TinyEditor/Editor';
 import VariantProductFields from "@/components/product/ProductVariant/VariantProductFields";
+import OrderBumpSelector from "@/components/product/OrderBumpSelector";
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Check } from 'lucide-react';
 
@@ -33,6 +35,17 @@ const ProductEditDrawer = ({ isOpen, onClose, product, onSuccess }) => {
     const [warrantyEnabled, setWarrantyEnabled] = useState(false);
     const [expireEnabled, setExpireEnabled] = useState(false);
     const [variants, setVariants] = useState([]);
+
+    // Order Bump states
+    const [enableOrderBump, setEnableOrderBump] = useState(false);
+    const [orderBumpProduct, setOrderBumpProduct] = useState(null);
+    const [orderBumpTitle, setOrderBumpTitle] = useState("স্পেশাল অ্যাড-অন অফার! সাথে নিন আমাদের এই বিশেষ পণ্য");
+    const [orderBumpSubtitle, setOrderBumpSubtitle] = useState("মূল পণ্যের সাথে একই পার্সেল ডেলিভারিতে পাচ্ছেন আকর্ষণীয় অতিরিক্ত ছাড়!");
+    const [orderBumpDiscount, setOrderBumpDiscount] = useState(100);
+    const [orderBumpPrice, setOrderBumpPrice] = useState("");
+
+    const { data: rawProductData = [] } = useProducts(1, 1000);
+    const allProducts = Array.isArray(rawProductData) ? rawProductData : rawProductData?.products || [];
 
     const { data: variantData = [], isLoading: isLoadingVariants } = useVariantAttributes();
     const { data: warrantyData = [], isLoading: isLoadingWarranties } = useWarranties();
@@ -140,6 +153,23 @@ const ProductEditDrawer = ({ isOpen, onClose, product, onSuccess }) => {
                 : [];
             setSelectedCollections(initialCollectionIds);
 
+            // Populate Order Bump fields
+            if (product.orderBumpProduct || product.orderBumpProductId) {
+                setEnableOrderBump(true);
+                setOrderBumpProduct(product.orderBumpProduct || allProducts.find(p => p.id === product.orderBumpProductId) || null);
+                setOrderBumpTitle(product.orderBumpTitle || "স্পেশাল অ্যাড-অন অফার! সাথে নিন আমাদের এই বিশেষ পণ্য");
+                setOrderBumpSubtitle(product.orderBumpSubtitle || "মূল পণ্যের সাথে একই পার্সেল ডেলিভারিতে পাচ্ছেন আকর্ষণীয় অতিরিক্ত ছাড়!");
+                setOrderBumpDiscount(product.orderBumpDiscount != null ? parseFloat(product.orderBumpDiscount) : 100);
+                setOrderBumpPrice(product.orderBumpPrice != null ? product.orderBumpPrice.toString() : "");
+            } else {
+                setEnableOrderBump(false);
+                setOrderBumpProduct(null);
+                setOrderBumpTitle("স্পেশাল অ্যাড-অন অফার! সাথে নিন আমাদের এই বিশেষ পণ্য");
+                setOrderBumpSubtitle("মূল পণ্যের সাথে একই পার্সেল ডেলিভারিতে পাচ্ছেন আকর্ষণীয় অতিরিক্ত ছাড়!");
+                setOrderBumpDiscount(100);
+                setOrderBumpPrice("");
+            }
+
             setIsSlugEdited(false);
         }
 
@@ -150,10 +180,16 @@ const ProductEditDrawer = ({ isOpen, onClose, product, onSuccess }) => {
             setSelectedCollections([]);
             setWarrantyEnabled(false);
             setExpireEnabled(false);
+            setEnableOrderBump(false);
+            setOrderBumpProduct(null);
+            setOrderBumpTitle("স্পেশাল অ্যাড-অন অফার! সাথে নিন আমাদের এই বিশেষ পণ্য");
+            setOrderBumpSubtitle("মূল পণ্যের সাথে একই পার্সেল ডেলিভারিতে পাচ্ছেন আকর্ষণীয় অতিরিক্ত ছাড়!");
+            setOrderBumpDiscount(100);
+            setOrderBumpPrice("");
             setProductType('single');
             setIsSlugEdited(false);
         }
-    }, [product, isOpen, reset, setValue]);
+    }, [product, isOpen, reset, setValue, allProducts]);
 
     // Escape key listener & prevent body scroll
     useEffect(() => {
@@ -412,6 +448,13 @@ const ProductEditDrawer = ({ isOpen, onClose, product, onSuccess }) => {
                 };
             }
 
+            // Append Order Bump configuration
+            payload.orderBumpProductId = (enableOrderBump && orderBumpProduct) ? orderBumpProduct.id : null;
+            payload.orderBumpTitle = (enableOrderBump && orderBumpProduct) ? orderBumpTitle.trim() : null;
+            payload.orderBumpSubtitle = (enableOrderBump && orderBumpProduct) ? orderBumpSubtitle.trim() : null;
+            payload.orderBumpDiscount = (enableOrderBump && orderBumpProduct) ? (parseFloat(orderBumpDiscount) || 0) : 0;
+            payload.orderBumpPrice = (enableOrderBump && orderBumpProduct && orderBumpPrice) ? parseFloat(orderBumpPrice) : null;
+
             Object.keys(payload).forEach((key) => {
                 if (
                     payload[key] === undefined ||
@@ -467,7 +510,7 @@ const ProductEditDrawer = ({ isOpen, onClose, product, onSuccess }) => {
 
                     {/* Sliding Drawer Panel (Half Screen on Desktop) */}
                     <motion.div
-                        className="fixed inset-y-0 right-0 w-full md:w-[65vw] lg:w-[55vw] xl:w-[50vw] bg-white shadow-2xl flex flex-col h-full border-l border-gray-200 z-[70] overflow-hidden"
+                        className="fixed inset-y-0 right-0 w-full md:w-[65vw] lg:w-[55vw] xl:w-[70vw] bg-white shadow-2xl flex flex-col h-full border-l border-gray-200 z-[70] overflow-hidden"
                         initial={{ x: '100%' }}
                         animate={{ x: 0 }}
                         exit={{ x: '100%' }}
@@ -1105,6 +1148,24 @@ const ProductEditDrawer = ({ isOpen, onClose, product, onSuccess }) => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Order Bump Upsell Section */}
+                    <OrderBumpSelector
+                        enableOrderBump={enableOrderBump}
+                        setEnableOrderBump={setEnableOrderBump}
+                        orderBumpProduct={orderBumpProduct}
+                        setOrderBumpProduct={setOrderBumpProduct}
+                        orderBumpTitle={orderBumpTitle}
+                        setOrderBumpTitle={setOrderBumpTitle}
+                        orderBumpSubtitle={orderBumpSubtitle}
+                        setOrderBumpSubtitle={setOrderBumpSubtitle}
+                        orderBumpDiscount={orderBumpDiscount}
+                        setOrderBumpDiscount={setOrderBumpDiscount}
+                        orderBumpPrice={orderBumpPrice}
+                        setOrderBumpPrice={setOrderBumpPrice}
+                        allProducts={allProducts}
+                        currentProductId={product?.id}
+                    />
 
                         </form>
 

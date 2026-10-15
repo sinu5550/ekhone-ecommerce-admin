@@ -45,6 +45,7 @@ import {
   Users,
   UsersRound,
   Calendar,
+  CopyCheck,
   X,
 } from "lucide-react";
 import Image from "next/image";
@@ -244,6 +245,7 @@ const NAVIGATION_ITEMS = [
     subItems: [
       { name: "My Account", href: "/settings", icon: Settings },
       { name: "Branding & Colors", href: "/branding-settings", icon: Palette },
+      { name: "Duplicate Orders", href: "/duplicate-order-settings", icon: CopyCheck },
     ]
   },
 ];

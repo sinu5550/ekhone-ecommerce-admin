@@ -22,7 +22,7 @@ export default function DuplicateOrderSettingsPage() {
   const [formData, setFormData] = useState({
     checkDuplicateOrder: true,
     duplicateOrderWindowHours: 24,
-    duplicateOrderMessage: "You recently placed an order. Our team is processing it. If you need to make changes, please contact us."
+    duplicateOrderMessage: "আপনি সম্প্রতি একটি অর্ডার করেছেন। আমাদের টিম সেটি প্রসেস করছে। অর্ডারে কোনো পরিবর্তন করতে চাইলে অনুগ্রহ করে আমাদের সাথে যোগাযোগ করুন।"
   });
   const [saving, setSaving] = useState(false);
 
@@ -31,7 +31,7 @@ export default function DuplicateOrderSettingsPage() {
       setFormData({
         checkDuplicateOrder: settings.checkDuplicateOrder !== undefined ? Boolean(settings.checkDuplicateOrder) : true,
         duplicateOrderWindowHours: settings.duplicateOrderWindowHours !== undefined ? Number(settings.duplicateOrderWindowHours) : 24,
-        duplicateOrderMessage: settings.duplicateOrderMessage || "You recently placed an order. Our team is processing it. If you need to make changes, please contact us."
+        duplicateOrderMessage: settings.duplicateOrderMessage || "আপনি সম্প্রতি একটি অর্ডার করেছেন। আমাদের টিম সেটি প্রসেস করছে। অর্ডারে কোনো পরিবর্তন করতে চাইলে অনুগ্রহ করে আমাদের সাথে যোগাযোগ করুন।"
       });
     }
   }, [settings]);
